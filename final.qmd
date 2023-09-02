@@ -1,0 +1,581 @@
+---
+title: "Sustainable Development and Renewable Energy consumption"
+author: "Beibarys Nyussupov"
+output:
+    html_document: default
+---
+
+My research question is - "How does renewable energy consumption contribute to the sustainable development goals in healthcare and environmental areas in the African countries and to what extent the renewable energy is used worldwide?"
+
+It is a topic of my personal interest because I am very into geospatial data analysis and I was always interested in global climate change and global warming. I will be very happy to analyze the effects of renewable energy on global warming and on such sustainable development goals as: decrease of greenhouse emits causing global warming, good health and well-being, access to electricity.
+
+It is also an important topic for others as usage of clean energy to save the environment is a widely discussed topic and I believe that it will be efficient to analyze the usage of renewable energy worldwide and its effects on the environment and country development.
+
+My main data source that I am focusing on is World Bank and I don't want to use any other sources to avoid loss of data.
+
+For geography, renewable energy consumption percentage is insufficient in most of the developed countries, which will stop me from doing relevant and reliable conclusions from my analysis. I chose to narrow down my analysis to countries in Africa, as MOST of the countries in Africa have higher rates of renewable energy consumption than the rest of the world and so it will be more efficient for me to focus on Africa region.
+
+```{r}
+#| warning: false
+#| results: false
+#| echo: false
+library(tidyverse)
+library(scales)
+library(tidyr)
+library(dplyr)
+library(tigris)
+library(scales)
+library(knitr)
+library(skimr)
+library(haven)
+library(gtsummary)
+library(kableExtra)
+library(prettydoc)
+library(RColorBrewer)
+library(colorspace)
+library(cowplot)
+library(janitor)
+library(ggpubr)
+library(patchwork)
+library(ggrepel)
+library(DT)
+library(countrycode)
+library(rnaturalearth)
+library(wbstats)
+library(tmap)
+library(sf)
+library(tmaptools)
+library(ggsflabel)
+library(datasets)
+library(jsonlite)
+rm(list = ls())
+```
+
+```{r}
+#| warning: false
+#| results: false 
+#| echo: false
+ind1 = 'EG.FEC.RNEW.ZS'
+ind2 = 'EG.ELC.ACCS.ZS'
+indicator_info1 = filter(wb_cachelist$indicators, indicator_id == ind1)
+indicator_info2 = filter(wb_cachelist$indicators, indicator_id == ind2)
+
+energy = wbstats::wb_data(
+      c(energy = ind1), 
+         mrnev = 1
+          ) # energy data set
+energy = energy %>% select(-c(iso2c, obs_status, footnote, last_updated))
+energy = energy %>% filter(energy != is.na(energy))
+
+electricity = wbstats::wb_data(
+      c(access = ind2), start_date = 2019, 
+      end_date = 2019
+          )
+
+electricity = electricity %>% select(-c(iso2c, unit, obs_status, footnote, last_updated))
+electricity = electricity %>% filter(access != is.na(access))
+
+combined = left_join(energy, electricity, c('country', 'iso3c', 'date'))
+combined = combined %>% filter(access != is.na(access) & energy != is.na(energy))
+
+# final data set for mapping and other more detailed analysis fot data frame 2012-2019 as this data frame has the least loss of data by NA
+energy_final = wbstats::wb_data(
+    c(energy = ind1), 
+    start_date = 2012,
+    end_date = 2019
+)
+
+energy_final = energy_final %>% filter(energy != is.na(energy))
+energy_final = energy_final %>% select(-c(iso2c, unit, obs_status, footnote, last_updated))
+data("World")
+map_data = left_join(World, energy_final, by = c('iso_a3' = 'iso3c'))
+```
+
+The only main independent variable of my analysis - Rate of renewable energy consumption ( % out of all energy consumption)
+
+The dependent variables that I chose are - electricity access, good health and well-being(mortality rate of children under 5 years old, life expectancy (age) and deaths caused by non-communicable diseases (% of deaths out of all deaths) and Climate Action (reduction of greenhouse gas emissions - CO2, methane, and Nitrous oxide). Choice of dependent variables is justified as these variables are parts of country sustainable development goals and these are the closest variables that might have been impacted by the consumption of renewable energy.
+
+I chose a data from 2012 and 2019 as this time period had a least amount of Nas for all countries comparing to other time periods. Instead of analyzing every year, I created mean values for all variables for this 7 years. (2012-2019)
+
+## 1 - Worldwide Renewable energy consumption
+
+First, I decided to look on overall situation of renewable energy consumption rates in the world. That's why I created a Choropleth map to understand to what extent renewable energy is used worldwide, which is a part of my research question.
+
+Renewable Energy is used to a little extent worldwide. Most of the countries in the world use renewable energy to less than 40% of their total energy consumption. Only few African countries and countries like Norway, Iceland, Sweden, Nepal, Bhutan, Myanmar, Papua New Guinea consume renewable energy to 50% or more out of all energy consumption.
+
+Cong Democratic republic is country with the highest rate of renewable energy consumption - 95.6%. Oppositely, Turkmenistan, Saudi Arabia and Brunei are the countries that use renewable energy to less than 1% out of all energy usage.
+
+```{r}
+#| echo: false
+#| warning: false
+mean_data = map_data %>% group_by(iso_a3, name, geometry) %>% summarise('mean' = mean(energy)) %>% filter(iso_a3 != "ATA") %>% filter(mean != is.na(mean))
+
+table_mean = mean_data %>% select(c(iso_a3, name, mean)) %>% datatable(rownames = FALSE, filter = 'top', colnames = c('Country code' = 1, 'Countries' = 2, 'Mean rate of renewable energy consumption over 2012-2019 (% out of all consumption)' = 3), caption = 'Average rate of renewable energy consumption out of total energy consumption by countries from 2012 to 2019') %>% formatRound(columns = c('Mean rate of renewable energy consumption over 2012-2019 (% out of all consumption)'), digits = 1)
+table_mean
+
+
+
+
+
+
+
+
+```
+
+<br>
+
+```{r}
+#| echo: false
+#| warning: false
+map_overall = tm_shape(mean_data) + tm_polygons(col = 'mean', palette = 'RdYlBu', breaks = c(0,10,20,30,40,50,60,Inf), id = 'name', title = '', 
+popup.vars = c('Mean rate' = 'mean', 'Country code' = 'iso_a3'))  + tm_layout(legend.frame = FALSE, frame = FALSE, inner.margins = c(0, 0, 0, 0), 
+outer.margins = c(0, 0, 0, 0), title = 'Average rate of renewable energy consumption out of total energy consumption by countries from 2012 to 2019') + tmap_mode('view') + tm_view(view.legend.position = c('left', 'bottom'))
+map_overall
+```
+
+Renewable energy sources are used to a least extent worldwide. As it seen on the map above, most of the countries do not prefer using renewable energy sources. Now, I created a bar plot with a facet wrap around each continent that shows instances of countries with mean 50% or higher rate of renewable energy consumption out of all consumption. As Africa has higher number of countries with a high rate of renewable-energy consumption rates, it is better for me to focus only on this geographical location.
+
+I created a table with African countries and their mean renewable energy consumption rates over 7 years (2012-2019). Democratic Republic of Congo and Somalia are countries with the highest rate of renewable energy consumption (95.6% and 94.6%), while Algeria and Libya are countries with the lowest percentages of renewable energy usage(0.1% and 2.7%).
+
+<br>
+
+```{r, fig.width= 15, fig.height=16}
+#| echo: false
+#| warning: false
+regional_data = map_data %>% group_by(iso_a3, name, continent) %>% summarise('mean' = mean(energy)) %>% filter(iso_a3 != "ATA") %>% filter(mean != is.na(mean))
+regional_data_Africa = regional_data %>% filter(continent == 'Africa')
+
+regional_data1 = regional_data  %>% filter(mean >= 50)
+
+regional_bar = ggplot(
+              regional_data1, 
+              aes(name, mean)) + 
+              geom_bar(
+                stat = 'identity') + 
+              facet_wrap(~`continent`) + 
+              scale_x_discrete(
+                name = '', 
+                expand = c(0, 0)) + 
+              scale_y_continuous(
+                name = 'Mean rate of Renewable energy consumption (% out of all energy consumption)',
+                expand = c(0, 0)
+              ) + 
+              labs(
+                title = 'Instances of countries with 50 or higher 2012-2019 mean rates of renewable energy consumption by geographical regions', 
+                subtitle = 'Africa has higher instances of countries with 50 or higher percentage mean rates of renewable consumption.', 
+                 caption = "World Bank Global Elictrification and Sustainable Energy to all databases"
+              ) + 
+              theme_minimal_hgrid(
+                12, rel_smal = 1) + 
+              theme(
+                axis.text.x = element_blank(), 
+                axis.ticks.x = element_blank(), 
+                axis.title.y = element_text(color = 'black', size = 16),
+                axis.text = element_text(size = 18), 
+                plot.title = element_text(face = 'bold', color = 'black', size = 16), 
+                strip.text = element_text(size = 18), 
+                plot.subtitle = element_text(size = 18), 
+                plot.caption = element_text(size = 18)
+                )
+regional_bar
+```
+
+<br>
+
+```{r}
+#| echo: false
+#| warning: false
+table_filtered = regional_data_Africa %>% select(c(iso_a3, name, mean)) %>% datatable(rownames = FALSE, filter = 'top', colnames = c('Country code' = 1, 'Countries' = 2, 'Mean rate of renewable energy consumption over 2012-2019 (% out of all consumption)' = 3), caption = 'Average rate of renewable energy consumption out of total energy consumption by African countries from 2012 to 2019') %>% formatRound(columns = c('Mean rate of renewable energy consumption over 2012-2019 (% out of all consumption)'), digits = 1)
+table_filtered
+```
+
+## 2 - Renewable Energy consumption and access to Electricity
+
+I tried to analyze the correlation between mean rates of renewable energy consumption and electricity access focusing exclusively on African countries as geographical area. Unfortunately the correlation is weak and negative = - 0.38. It proves that there are different factors that affect access to electricity by population in African countries and higher renewable energy consumption rates do not contribute to the development of equal acess to electricity in countries.
+
+```{r, fig.width= 11}
+#| echo: false
+#| warning: false
+electricity1 = wbstats::wb_data(
+      c(access = ind2), start_date = 2012, 
+      end_date = 2019
+          )
+electricity1 = electricity1 %>% select(-c(iso2c, unit, obs_status, footnote, last_updated))
+electricity1 = electricity1 %>% filter(access != is.na(access))
+electricity1 = electricity1 %>% group_by(iso3c, country) %>% summarise('mean_electricity' = mean(access))
+
+combined_access = left_join(regional_data_Africa, electricity1, by = c('iso_a3' = 'iso3c'))
+combined_access = combined_access %>% select(-c(country))
+
+comparison_access = ggplot(combined_access, aes(mean,mean_electricity)) + 
+  geom_smooth(method = "lm", formula = 'y ~ x', se = FALSE, 
+              fullrange = TRUE, color = 'blue') +
+  geom_point(color = '#FEC50C', 
+             fill = '#FEC50C',
+             size = 2.5, shape = 21, alpha = 0.5) + 
+  
+  theme_minimal_hgrid(12, rel_small = 1) + 
+  
+  labs( 
+    title = "Relationship between renewable energy consumption and access to electricity by African countries in 2012-2019 (average mean)", 
+    subtitle = "Visualization still does show weak and negative correlation between mean electricity access and renewable energy consumption", 
+    caption = "World Bank Global Elictrification and Sustainable Energy to all databases") + 
+ 
+  scale_y_continuous(
+    name = "Average access to electricity (% of population)",
+    expand = c(0,0), 
+    limits = c(0, 110),
+    breaks = c(0, 20, 40, 60, 80, 100)) + 
+  scale_x_continuous(
+    name = "Average renewable Energy consumption (% of total energy consumption)",
+    expand = c(0,0), 
+    limits = c(0, 100), 
+    breaks = c(0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100)) + 
+  theme(legend.position = 'top', 
+        legend.justification = 'right', 
+        legend.text = element_text(size = 9),
+        legend.box.spacing = unit(0, 'pt'), 
+        axis.text.x = element_text(color = 'black', size = 12), 
+        axis.text.y = element_text(color = 'black', size = 12), 
+        plot.title = element_text(face = 'bold', size = 12))
+comparison_access
+
+```
+
+## 3 - Climate change factors and Renewable Energy consumption
+
+CO2 (Carbon Dioxide), Methane, and Nitrous oxide are the most important greenhouse gases that affect climate change in the world. Emissions of these gases cause global warming worldwide. That's why when it comes to climate change and emissions, these gases production should be analyzed.
+
+Below, scaterplots visualization can be seen. This visualization is showing a strong negative correlation between mean Co2 emissions and renewable energy consumption rates in African countries. Scatterplot graph shows that Co2 emissions tend to be significantly lower in African countries with higher mean renewable energy consumption rates. For example: Democratic Republic of Congo - country with the highest average rates of renewable energy consumption has 0.04 CO2 metric tones per capita emissions. Oppositely, Libya with 2.7% of mean renewable energy consumption has on average 9 Co2 metric tones per capita, which is higher than average amount of emissions.
+
+Next, geospatial map visualization of Africa further proves that as countries in Africa use more renewable energy, less Co2 emissions are produced. Libya, South Africa, Eq.Guniea are the only countries in Africa that have a very high Co2 pollution as they have high mean values of Co2 metric tones per capita emissions, and their renewable energy consumption is very low. Given map visualization explains that as countries use renewable energy consumption to greater rates out of all energy consumption rates, rates of Co2 metric tones per capita tend to become lower.
+
+When it comes to Methane and Nitrous Oxide gases, the correlation between these gases indicators and renewable energy consumption rates in Africa is relatively weak. I used box plot diagrams to explore the trends between these independent and dependent indicators. Both boxplots visuzalizations show trends of gases emissions of African countries with less than 50 and with 50 or greater than mean renewable energy consumption rates. Boxplot with Methane gase correlation shows that most African countries with 50% or higher rates of renewable energy consumption have slightly lower emissions, however the difference is not significant and the correlation is weak. Boxplot with Nitrous oxide correlation explains that countries with 50% or higher rates of renewable energy consumption tend to have higher emissions, which doesn't make sense for the analysis of relationship between this indicators and renewable energy consumption. Both boxplots show weak correlation, which could mean that Emission of Methane and Nitrous oxide gases is affected by other indicators.
+
+These indicators are not affected by renewable energy consumption and do not show powerful correlations, therefore these indicators are affected by background factors other than clean energy and usage of clean energy doesn't decrease emission of these gases.
+
+As a result, Higher Renewable energy consumption rates successfully contribute to the cleaner environment in Africa as emission of Co2 gases decrease as the rates of renewable energy consumption increase in African countries. However, the effect of increase in renewable energy consumption on Methane and Nitrous Oxide emissions is undefined or minor.
+
+```{r, fig.width= 14}
+#| echo: false
+#| warning: false
+ind3 = 'EN.ATM.CO2E.PC'
+total_emissions = wbstats::wb_data(
+      c(emissions = ind3), start_date = 2012, 
+      end_date = 2019
+          )
+total_emissions = total_emissions %>% select(-c(iso2c, unit, obs_status, footnote, last_updated))
+total_emissions = total_emissions %>% filter(emissions != is.na(emissions))
+total_emissions = total_emissions %>% group_by(iso3c, country) %>% summarise('mean_emissions' = mean(emissions))
+combined_emissions = left_join(regional_data_Africa, total_emissions, by = c('iso_a3' = 'iso3c')) %>% select(-c(country))
+
+table_filtered_emissions = combined_emissions %>% select(c(iso_a3, name, mean, mean_emissions)) %>% datatable(rownames = FALSE, filter = 'top', colnames = c('Country code' = 1, 'Countries' = 2, 'Mean rate of renewable energy consumption over 2012-2019 (% out of all consumption)' = 3, 'Mean rate of CO2 emissions (metric tones per capita)' = 4), caption = 'Average rate of renewable energy consumption out of total energy consumption and mean rate of co2 emissions in the air by African countries from 2012 to 2019') %>% formatRound(columns = c('Mean rate of renewable energy consumption over 2012-2019 (% out of all consumption)'), digits = 1)
+table_filtered_emissions
+
+```
+
+<br>
+
+```{r, fig.width= 15, fig.height= 16}
+#| echo: false
+#| warning: false
+
+comparison_emissions = ggplot(combined_emissions, aes(mean, mean_emissions)) + 
+  geom_smooth(method = "lm", formula = 'y ~ x', se = FALSE, 
+              fullrange = TRUE, color = 'blue') +
+  geom_point(color = '#20AF24', 
+             fill = '#20AF24',
+             size = 2.5, shape = 21, alpha = 0.5) + 
+  
+  theme_minimal_hgrid(12, rel_small = 1) + 
+  
+  labs( 
+    title = "Relationship between renewable energy consumption and CO2 emissions in African countries 2012-2019", 
+    subtitle = "Strong negative correlation - consumption of renewable energy decreases the air pollution with C02 in African Countries", 
+    caption = "World Bank Climate Watch. 2020. GHG Emissions. Washington, DC: World Resources Institute.") + 
+ 
+  scale_y_continuous(
+    name = "Average CO2 emissions (metric tones per capita)",
+    expand = c(0,0),
+    limits = c(0, 9),
+    breaks = c(0, 1, 2, 3, 4, 5, 6, 7, 8, 9)) + 
+  scale_x_continuous(
+    name = "Average renewable Energy consumption (% of total energy consumption)",
+    expand = c(0,0), 
+    limits = c(0, 100), 
+    breaks = c(0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100)) + 
+  theme(legend.position = 'top', 
+        legend.justification = 'right', 
+        legend.text = element_text(size = 18),
+        legend.box.spacing = unit(0, 'pt'), 
+        axis.text.x = element_text(color = 'black', size = 18), 
+        axis.text.y = element_text(color = 'black', size = 18), 
+        plot.title = element_text(face = 'bold', size = 18), 
+        plot.subtitle = element_text(size = 18), 
+        axis.title.y = element_text(size = 18), 
+        axis.title.x = element_text(size = 18), 
+        plot.caption = element_text(size = 14))
+comparison_emissions
+
+```
+
+<br>
+
+```{r}
+#| echo: false
+#| warning: false
+palette = c("#d7e1ee", "#bfcbdb","#df8879","#b04238", "#991f17")
+map_emissions= tm_shape(combined_emissions) + tm_polygons(col = 'mean_emissions', palette = palette, breaks = c(0,2,4,6,8,10, Inf), id = 'name', title = 'Average rate of CO2 emissions (metric tones per capita) of African countries from 2012 to 2019', 
+popup.vars = c('Mean rate' = 'mean_emissions', 'Mean rate of renewable energy consumption' = 'mean','Country code' = 'iso_a3'))  + tm_layout(legend.frame = FALSE, frame = FALSE, inner.margins = c(0, 0, 0, 0), 
+outer.margins = c(0, 0, 0, 0)) + tmap_mode('view') + tm_view(view.legend.position = c('left', 'bottom'))
+map_emissions
+
+ind_methane = 'EN.ATM.METH.KT.CE'
+total_emissions = wbstats::wb_data(
+      c(methane_emissions = ind_methane), start_date = 2012, 
+      end_date = 2019
+          )
+total_emissions = total_emissions %>% select(-c(iso2c, unit, obs_status, footnote, last_updated))
+total_emissions = total_emissions %>% filter(methane_emissions != is.na(methane_emissions))
+total_emissions = total_emissions %>% group_by(iso3c, country) %>% summarise('mean_methane_emissions' = mean(methane_emissions))
+combined_emissions = left_join(combined_emissions, total_emissions, by = c('iso_a3' = 'iso3c'))
+combined_emissions = combined_emissions %>% filter(continent != is.na(continent)) %>% select(-c(country))
+
+combined_emissions <- combined_emissions %>%
+  mutate(renewable_below_50 = mean < 50)
+
+```
+
+<br>
+
+```{r, fig.width= 14}
+#| echo: false
+#| warning: false
+boxplot_methane <- ggplot(combined_emissions, aes(x = renewable_below_50, y = mean_methane_emissions)) + 
+  geom_boxplot(aes(fill = renewable_below_50), alpha = 0.5, outlier.alpha = 0) +
+  scale_fill_manual(values = c('green', 'grey'), name = 'Renewable Energy Consumption', labels = c('>= 50%', '< 50%')) +
+  labs(
+    title = "Mean values of Methane gas emissions by renewable energy consumption rates in African countries (2012-2019)",
+    subtitle = "Countries with 50% or more renewable energy consumption have lower methane emissions, however the correlation is weak", 
+    caption = "World Bank: Climate Watch. 2020. GHG Emissions. Washington, DC: World Resources Institute."
+  ) +
+  theme_minimal_hgrid(12, rel_small = 1) +
+  scale_y_continuous(
+    name = 'Mean value of Methane emissions (kt)', 
+    expand = c(0, 0)
+  )  + 
+  theme(
+    legend.position = 'top',
+    legend.justification = 'right',
+    legend.text = element_text(size = 18),
+    legend.box.spacing = unit(0, 'pt'),
+    axis.text.x = element_text(size = 18),
+    axis.text.y = element_blank(), 
+    plot.title = element_text(face = 'bold', size = 18), 
+    plot.subtitle = element_text(size = 14), 
+    axis.title.y = element_blank(), 
+    axis.title.x = element_text(size = 18 ), 
+    plot.caption = element_text(size = 14)
+  ) + coord_flip()
+boxplot_methane
+
+
+ind_oxide = 'EN.ATM.NOXE.KT.CE'
+total_emissions = wbstats::wb_data(
+      c(oxide_emissions = ind_oxide), start_date = 2012, 
+      end_date = 2019
+          )
+
+total_emissions = total_emissions %>% select(-c(iso2c, unit, obs_status, footnote, last_updated))
+total_emissions = total_emissions %>% filter(oxide_emissions != is.na(oxide_emissions))
+total_emissions = total_emissions %>% group_by(iso3c, country) %>% summarise('mean_oxide_emissions' = mean(oxide_emissions))
+combined_emissions = left_join(combined_emissions, total_emissions, by = c('iso_a3' = 'iso3c'))
+combined_emissions = combined_emissions %>% filter(continent != is.na(continent)) %>% select(-c(country))
+
+
+boxplot_oxide <- ggplot(combined_emissions, aes(x = renewable_below_50, y = mean_oxide_emissions)) + 
+  geom_boxplot(aes(fill = renewable_below_50), alpha = 0.5, outlier.alpha = 0) +
+  scale_fill_manual(values = c('green', 'grey'), name = 'Renewable Energy Consumption', labels = c('>= 50%', '< 50%')) +
+  labs(
+    title = "Mean values of Nitrous Oxide emissions by renewable energy consumption in African countries (2012-2019)",
+    subtitle = "Countries with 50% or more renewable energy consumption have higher Nitrous oxide emissions, the correlation is weak", 
+    caption = "World Bank: Climate Watch. 2020. GHG Emissions. Washington, DC: World Resources Institute."
+  ) +
+  theme_minimal_hgrid(12, rel_small = 1) +
+  scale_y_continuous(
+    name = 'Mean value of Nitrous oxide emissions (thousand metric tones)', 
+    expand = c(0, 0)
+  )  + 
+  theme(
+    legend.position = 'top',
+    legend.justification = 'right',
+    legend.text = element_text(size = 18),
+    legend.box.spacing = unit(0, 'pt'),
+    axis.text.x = element_text(size = 18),
+    axis.text.y = element_blank(), 
+    plot.title = element_text(face = 'bold', size = 18), 
+    plot.subtitle = element_text(size = 14), 
+    axis.title.y = element_blank(), 
+    axis.title.x = element_text(size = 18 ), 
+    plot.caption = element_text(size = 14)
+  ) + coord_flip()
+boxplot_oxide
+```
+
+## 4 - Health Indicators and Renewable Energy Consumption
+
+I used boxplot diagrams and map visualizations to explore this sector of sustainable development in Africa. Mortality rate of children, Life expectancy age and deaths caused by Non-communicable diseases were ideal indicators for this analysis. Deaths caused by non-communicable diseases can't be explored, as communicable diseases are diseases that spread by contact(HIV, Covid) and they are not affected by degree of clean air or air pollution. While non-communicable diseases are diseases as cancer and diabetes and they can be affected and caused by large gase emissions.
+
+Same as before, I divided African countries into two groups: countries with less than 50% of renewable energy consumption rates (mean rates out of all consumption) and countries with 50% or higher rates of renewable energy consumption. Unfortunately, boxplot diagrams explain that Children mortality and Life expectancy are weakly affected by renewable energy consumption as most of the African countries with less than 50% of renewable energy consumption have lower mortality rates and higher life expectancy, which doesn't give a solid relationship explanation between such indicators. Therefore, these important determinants are affected by other background not explored factors and renewable energy consumption can't contribute to better life expectancy or lower children mortality rates.
+
+However, logical trends and explanations can be derived from last boxplot diagram and map visualizations, as these graphs show that African countries with higher mean rates of renewable energy consumption contribute to the lower average percentage of deaths caused by non-communicable diseases. Most of the countries with 50% or higher mean renewable consumption rates have much lower deaths caused by non-communicable diseases. The only exception is Sudan, which has 63% of mean renewable energy consumption out of all energy consumption and relatively high death rate - 52%. Still, Sudan's death rate is lower than death rate by non-communicable diseases of most African countries with lower than 50% of renewable energy consumption.
+
+It might mean that as countries in Africa use renewable energy to a greater extent, the air becomes cleaner as Co2 pollution tends to be lower and therefore risk and incidents of non-communicable diseases decrease, which also leads to lower death rates from such diseases.
+
+```{r, fig.width= 13}
+#| echo: false
+#| warning: false
+ind_life_exp = 'SP.DYN.LE00.IN'
+life_expectancy = wbstats::wb_data(
+      c(life_exp = ind_life_exp), start_date = 2012, 
+      end_date = 2019
+          )
+life_expectancy = life_expectancy %>% select(-c(iso2c, unit, obs_status, footnote, last_updated))
+life_expectancy= life_expectancy %>% filter(life_exp != is.na(life_exp))
+life_expectancy = life_expectancy %>% group_by(iso3c, country) %>% summarise('mean_expectancy' = mean(life_exp))
+
+combined_health = left_join(regional_data_Africa, life_expectancy, by = c('iso_a3' = 'iso3c')) %>% select(-c(country))
+
+combined_health <- combined_health %>%
+  mutate(renewable_below_50 = mean < 50)
+
+boxplot_lifeexpectancy <- ggplot(combined_health, aes(x = renewable_below_50, y = mean_expectancy)) + 
+  geom_boxplot(aes(fill = renewable_below_50), alpha = 0.5, outlier.alpha = 0) +
+  scale_fill_manual(values = c('#20AF24', 'grey'), name = 'Renewable Energy Consumption', labels = c('>= 50%', '< 50%')) +
+  labs(
+    title = "Mean life expectancy by birth in African countries by renewable energy consumption rates (2012-2019)",
+    subtitle = "On average, countries with renewable energy consumption >= 50% have lower life expectancy", 
+    caption = 'Worldbank: Health Indicators databases'
+  ) +
+  theme_minimal_hgrid(12, rel_small = 1) +
+  scale_y_continuous(
+    name = 'Mean life expectancy (years)', 
+    limits = c(50, 80), 
+    breaks = c(50, 55, 60, 65, 70, 75, 80), 
+    expand = c(0, 0)
+  ) + 
+  theme(
+    legend.position = 'top',
+    legend.justification = 'right',
+    legend.text = element_text(size = 16),
+    legend.box.spacing = unit(0, 'pt'),
+    axis.text.x = element_text(size = 15),
+    axis.text.y = element_blank(), 
+    plot.title = element_text(face = 'bold', size = 16), 
+    plot.subtitle = element_text(size = 16), 
+    axis.title.y = element_blank(), 
+    axis.title.x = element_text(size = 16 ), 
+    plot.caption = element_text(size = 14)
+  ) + coord_flip()
+boxplot_lifeexpectancy
+
+
+ind_mortality_rate = 'SH.DYN.MORT'
+mortality_rate = wbstats::wb_data(
+      c(mortality = ind_mortality_rate), start_date = 2012, 
+      end_date = 2019
+          )
+mortality_rate = mortality_rate %>% select(-c(iso2c, unit, obs_status, footnote, last_updated))
+mortality_rate= mortality_rate %>% filter(mortality != is.na(mortality))
+mortality_rate = mortality_rate %>% group_by(iso3c, country) %>% summarise('mean_mortality' = mean(mortality)) %>% select(-c(country))
+
+combined_health = left_join(combined_health, mortality_rate, by = c('iso_a3' = 'iso3c'))
+combined_health = combined_health %>% filter(continent != is.na(continent))
+
+boxplot_mortality <- ggplot(combined_health, aes(x = renewable_below_50, y = mean_mortality)) + 
+  geom_boxplot(aes(fill = renewable_below_50), alpha = 0.5, outlier.alpha = 0) +
+  scale_fill_manual(values = c('red', 'grey'), name = 'Renewable Energy Consumption', labels = c('>= 50%', '< 50%')) +
+  labs(
+    title = "Mortality rate in African countries by renewable energy consumption rates (2012-2019)",
+    subtitle = "Countries with 50% or more renewable energy consumption have higher mortality rate of children", 
+    caption = 'World Bank: Estimates developed by the UN Inter-agency Group for Child Mortality Estimation'
+  ) +
+  theme_minimal_hgrid(12, rel_small = 1) +
+  scale_y_continuous(
+    name = 'Mean value of mortality of children under 5 years old', 
+    expand = c(0, 0)
+  )  + 
+  theme(
+    legend.position = 'top',
+    legend.justification = 'right',
+    legend.text = element_text(size = 16),
+    legend.box.spacing = unit(0, 'pt'),
+    axis.text.x = element_text(size = 15),
+    axis.text.y = element_blank(), 
+    plot.title = element_text(face = 'bold', size = 16), 
+    plot.subtitle = element_text(size = 16), 
+    axis.title.y = element_blank(), 
+    axis.title.x = element_text(size = 16 ), 
+    plot.caption = element_text(size = 14)
+  ) + coord_flip()
+boxplot_mortality
+
+
+ind_death = 'SH.DTH.NCOM.ZS'
+noncom_death = wbstats::wb_data(
+      c(noncom_death = ind_death), start_date = 2012, 
+      end_date = 2019
+          )
+
+noncom_death = noncom_death %>% select(-c(iso2c, unit, obs_status, footnote, last_updated))
+noncom_death = noncom_death %>% filter(noncom_death != is.na(noncom_death))
+noncom_death = noncom_death %>% group_by(iso3c, country) %>% summarise('mean_death' = mean(noncom_death)) %>% select(-c(country))
+
+combined_health = left_join(combined_health, noncom_death, by = c('iso_a3' = 'iso3c'))
+combined_health = combined_health %>% filter(continent != is.na(continent))
+
+boxplot_death <- ggplot(combined_health, aes(x = renewable_below_50, y = mean_death)) + 
+  geom_boxplot(aes(fill = renewable_below_50), alpha = 0.5, outlier.alpha = 0) +
+  scale_fill_manual(values = c('red', 'grey'), name = 'Renewable Energy Consumption', labels = c('>= 50%', '< 50%')) +
+  labs(
+    title = "Deaths in African countries by renewable energy consumption (2012-2019)",
+    subtitle = "Countries with 50% or more renewable energy consumption have lower rates non-communicable disease deaths", 
+    caption = "World Bank: Global Health Estimates 2020, Geneva, World Health Organization"
+  ) +
+  theme_minimal_hgrid(12, rel_small = 1) +
+  scale_y_continuous(
+    name = 'Mean rate of deaths caused by non-communicable diseases (out of all deaths rate)', 
+    expand = c(0, 0)
+  ) + 
+  scale_x_discrete(
+    name = " Mean renewable energy consumption rate (out of all consumption)"
+  ) + 
+  theme(
+    legend.position = 'top',
+    legend.justification = 'right',
+    legend.text = element_text(size = 16),
+    legend.box.spacing = unit(0, 'pt'),
+    axis.text.x = element_text(size = 15),
+    axis.text.y = element_blank(), 
+    plot.title = element_text(face = 'bold', size = 16), 
+    plot.subtitle = element_text(size = 16), 
+    axis.title.y = element_blank(), 
+    axis.title.x = element_text(size = 16 ), 
+    plot.caption = element_text(size = 14)
+  ) + coord_flip()
+boxplot_death
+
+
+
+```
+
+<br>
+
+```{r}
+#| echo: false
+#| warning: false
+map_death = tm_shape(combined_health) + tm_polygons(col = 'mean_death', palette = palette, breaks = c(0, 40, 50, Inf), id = 'name', title = 'Percentage of death caused by non-communicable diseases in African countries by mean renewable energy consumption rates (2012-2019)', 
+popup.vars = c('Mean death rate' = 'mean_death', "Mean renewable energy consumption rate" = 'mean', 'Country code' = 'iso_a3'))  + tm_layout(legend.frame = FALSE, frame = FALSE, inner.margins = c(0, 0, 0, 0), 
+outer.margins = c(0, 0, 0, 0)) + tmap_mode('view') + tm_view(view.legend.position = c('left', 'bottom'))
+map_death
+```
