@@ -1,0 +1,159 @@
+---
+title: "Renewable energy consumption rate and sustainable development"
+author: "Beibarys Nyussupov"
+format: revealjs
+editor: visual
+output:
+  revealjs::revealjs_presentation:
+    width: 1200
+    height: 900
+---
+
+## Research Question
+
+::: nonincremental
+-   How does renewable energy consumption contribute to the sustainable development goals in electricity access, healthcare and environmental areas in the African countries and to what extent the renewable energy is used worldwide?
+
+-   Importance of the research question:
+
+    Given research question focuses on geospatial data and analyzes such topics as greenhouse gases emissions, usage of renewable energy, sustainable development. Geospatial data analysis and highlighted topics are topics of personal interest, but highlighted topics are also a widely discussed issues in today's world.
+:::
+
+## 1. Used Variables
+
+::: nonincremental
+-   Time frame: 2012-2019 (mean values for each indicator)
+
+-   Independent Variable: Renewable Energy Consumption ( % out of all energy consumption)
+
+-   Dependent Variables: Access to electricity (% of population), CO2 gas emissions (metric tones per capita), Methane gas emissions (kilotones kt), Nitrous Oxide gas emissions (metric tones), Mortality rates of children under 5 years old (%), Life expectancy (years), Deaths rate caused by non-communicable diseases (% of all deaths)
+
+-   Geographical Region: Africa
+
+-   Source of Data: World Bank
+:::
+
+## 2. To what extent Renewable energy is used worldwide?
+
+-   It is not used worldwide. Most of the world countries prefer traditional types of energy - fossil fuels. Most of the renewable energy consumption is located in Africa.
+
+```{r}
+#| warning: false
+#| echo: false
+library(tidyverse)
+library(scales)
+library(tidyr)
+library(dplyr)
+library(tigris)
+library(scales)
+library(knitr)
+library(skimr)
+library(haven)
+library(gtsummary)
+library(kableExtra)
+library(prettydoc)
+library(RColorBrewer)
+library(colorspace)
+library(cowplot)
+library(janitor)
+library(ggpubr)
+library(patchwork)
+library(ggrepel)
+library(DT)
+library(countrycode)
+library(rnaturalearth)
+library(wbstats)
+library(tmap)
+library(sf)
+library(tmaptools)
+library(ggsflabel)
+library(datasets)
+library(jsonlite)
+
+ind1 = 'EG.FEC.RNEW.ZS'
+ind2 = 'EG.ELC.ACCS.ZS'
+indicator_info1 = filter(wb_cachelist$indicators, indicator_id == ind1)
+indicator_info2 = filter(wb_cachelist$indicators, indicator_id == ind2)
+
+energy = wbstats::wb_data(
+      c(energy = ind1), 
+         mrnev = 1
+          ) # energy data set
+energy = energy %>% select(-c(iso2c, obs_status, footnote, last_updated))
+energy = energy %>% filter(energy != is.na(energy))
+
+electricity = wbstats::wb_data(
+      c(access = ind2), start_date = 2019, 
+      end_date = 2019
+          )
+
+electricity = electricity %>% select(-c(iso2c, unit, obs_status, footnote, last_updated))
+electricity = electricity %>% filter(access != is.na(access))
+
+combined = left_join(energy, electricity, c('country', 'iso3c', 'date'))
+combined = combined %>% filter(access != is.na(access) & energy != is.na(energy))
+
+# final data set for mapping and other more detailed analysis fot data frame 2012-2019 as this data frame has the least loss of data by NA
+energy_final = wbstats::wb_data(
+    c(energy = ind1), 
+    start_date = 2012,
+    end_date = 2019
+)
+
+energy_final = energy_final %>% filter(energy != is.na(energy))
+energy_final = energy_final %>% select(-c(iso2c, unit, obs_status, footnote, last_updated))
+data("World")
+map_data = left_join(World, energy_final, by = c('iso_a3' = 'iso3c'))
+
+mean_data = map_data %>% group_by(iso_a3, name, geometry) %>% summarise('mean' = mean(energy)) %>% filter(iso_a3 != "ATA") %>% filter(mean != is.na(mean))
+map_overall = tm_shape(mean_data) + tm_polygons(col = 'mean', palette = 'RdYlBu', breaks = c(0,10,20,30,40,50,60,Inf), id = 'name', title = '', 
+popup.vars = c('Mean rate' = 'mean', 'Country code' = 'iso_a3'))  + tm_layout(legend.frame = FALSE, frame = FALSE, inner.margins = c(0, 0, 0, 0), 
+outer.margins = c(0, 0, 0, 0), title = 'Average rate of renewable energy consumption out of total energy consumption by countries from 2012 to 2019') + tmap_mode('view') + tm_view(view.legend.position = c('left', 'bottom'))
+map_overall
+```
+
+## 3. Renewable Energy consumption and access to Electricity
+
+::: nonincremental
+-   Correlation is weak and negative = -0.38.
+
+-   Countries with higher mean renewable energy consumption rates tend to have low rates of population with access to electricity
+
+-   Different background factors affect access electricity by population rate in African countries and higher renewable energy consumption rates do not contribute to the development of equal acess to electricity in African countries.
+:::
+
+## 4. Environment and Renewable Energy Consumption
+
+::: nonincremental
+-   CO2 (Carbon Dioxide), Methane, and Nitrous oxide are the most important greenhouse gases that cause environmental changes in the world. CO2 is the most abundant and long-living contributor to climate change.
+
+-   There is a strong and negative correlation between renewable energy consumption and CO2 emission rates.
+
+-   Levels of Co2 emissions tend to be significantly lower in African countries with higher mean renewable energy consumption rates. Higher Renewable energy consumption rates successfully contribute to the cleaner environment in Africa as emission of Co2 gases decrease as the rates of renewable energy consumption increase in African countries
+
+-   However, the effect of increase in renewable energy consumption on Methane and Nitrous Oxide emissions is undefined or minor. Given gases are affected by background factors not explored in this project.
+:::
+
+## 5. Health Care and Renewable Energy Consumption
+
+::: nonincremental
+-   Children mortality and Life expectancy indicators are weakly affected by renewable energy consumption rate in African countries.
+
+-   Life expectancy and child mortaility are weakly affected by the renewable energy rate.
+
+-   However, there is a strong correlation between renewable energy consumption rate and rate of deaths caused by non-communicable diseases. African countries with higher mean rates of renewable energy consumption have a lower average percentage of deaths caused by non-communicable diseases.
+
+-   In African countries with the use of renewable energy to a greater extent, the air becomes cleaner as Co2 pollution tends to be lower and therefore risk and incidents of non-communicable diseases decrease, which also leads to lower death rates from such diseases.
+:::
+
+## Conclusion:
+
+::: nonincremental
+-   Renewable Energy is not popular worldwide and not used to a major extent.
+
+-   Renewable Energy is assosicated with sustainable development in 2 areas of African countries: healthcare and climate change.
+
+-   African countries with high levels of renewable energy consumption rates tend to have lower emissions of CO2 gas. Renewable energy contributes to the climate control goal of sustainable development, as increase in consumption of Renewable energy sufficiently decreases the pollution with CO2 gases.
+
+-   African countries with high levels of renewable energy consumption rates tend to have significantly lower rates of deaths caused by non-communicable diseases. Renewable energy contributes to the human well being goal of sustainable development, as increase in consumption of Renewable Energy reduces CO2 pollution and therefore risks of non-communicable diseases and deaths decrease.
+:::
