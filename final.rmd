@@ -3,6 +3,7 @@ title: "Sustainable Development and Renewable Energy consumption"
 author: "Beibarys Nyussupov"
 output:
     html_document: default
+always_allow_html: true
 ---
 
 My research question is - "How does renewable energy consumption contribute to the sustainable development goals in healthcare and environmental areas in the African countries and to what extent the renewable energy is used worldwide?"
@@ -45,7 +46,6 @@ library(wbstats)
 library(tmap)
 library(sf)
 library(tmaptools)
-library(ggsflabel)
 library(datasets)
 library(jsonlite)
 rm(list = ls())
